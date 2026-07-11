@@ -184,10 +184,15 @@ Read and complete `model_card.md`:
 
 [**Model Card**](model_card.md)
 
-Write 1 to 2 paragraphs here about what you learned:
+**Biggest learning moment:** running the adversarial profiles, not writing the scoring function itself. The code looked fine on a normal "well-formed" input — it was only when I gave it contradictory preferences (like sad mood + high energy pop, or loves-acoustic + wants-max-energy) that I saw mismatches never actually cost a song anything. That's the kind of bug that's invisible until you stress-test it, which felt very familiar from my QA background — the happy path always looks clean.
 
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
+**How AI tools helped, and where I had to double-check them:** Claude was genuinely useful for generating adversarial test profiles I wouldn't have thought to try, running the actual scoring math against them, and helping me phrase the bias findings in plain language for the model card. But I had to double-check the numbers myself before trusting them in the doc — the first pass at explaining the weight-shift experiment needed me to confirm the score math against the real dataset rather than take a summary at face value, and I caught a couple of places where a description didn't quite match what the code was actually doing.
+
+**What surprised me:** how "smart" a handful of if-statements and a distance formula can feel. Just genre + mood + energy + an acoustic bonus was enough to produce results that looked personalized at a glance — you have to dig in with weird edge cases to see that it's really just adding up small numbers, with no real understanding of taste at all.
+
+**What I'd try next:** add a real penalty for mismatches instead of just zero points, use the tempo/valence/danceability columns that are currently sitting unused in the dataset, and add a diversity cap so the same one or two artists don't dominate every top-5 just because they happen to score well.
+
+More broadly, this project changed how I think about recommenders in general: they turn a handful of measurable data points into a ranked list, but the "personalization" is really just weighted arithmetic — it can look convincing on typical inputs while still having real blind spots. Bias here doesn't come from anything malicious; it comes from which features get more weight than others (genre and energy dominating mood), from a small or unbalanced catalog, and from never subtracting points for a mismatch. Those are exactly the kinds of quiet, structural issues that are easy to miss without deliberately testing edge cases and comparing profiles side by side.
 
 ### Sample Recommendation Output
 

@@ -76,41 +76,67 @@ def load_songs(csv_path: str) -> List[Dict]:
     return songs
 
 
-def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
+# --- Weight-shift experiment scaffolding -----------------------------------
+# Original hardcoded point values, kept here so the change is easy to revert.
+ORIGINAL_WEIGHTS = {
+    "genre": 2.0,
+    "mood": 1.0,
+    "energy_max": 2.0,
+    "acoustic": 1.0,
+}
+
+# --- EXPERIMENTAL CHANGE: Weight Shift (energy doubled, genre halved) ------
+DEFAULT_WEIGHTS = {
+    "genre": 1.0,        # was 2.0 (halved)
+    "mood": 1.0,         # unchanged
+    "energy_max": 4.0,   # was 2.0 (doubled)
+    "acoustic": 1.0,     # unchanged
+}
+# NOTE: max possible score changed from 6.0 -> 7.0. See verify_weight_shift.py
+# for the check that confirms this and what it means for any score thresholds.
+# To revert: DEFAULT_WEIGHTS = ORIGINAL_WEIGHTS.copy()
+# -----------------------------------------------------------------------------
+
+
+def score_song(user_prefs: Dict, song: Dict, weights: Optional[Dict] = None) -> Tuple[float, List[str]]:
     """Scores a song against user preferences and returns the score with reasons."""
+    if weights is None:
+        weights = DEFAULT_WEIGHTS
+
     score = 0.0
     reasons = []
 
-    # Genre match: +2.0 points
+    # Genre match
     if song["genre"] == user_prefs["favorite_genre"]:
-        score += 2.0
-        reasons.append("genre match (+2.0)")
+        score += weights["genre"]
+        reasons.append(f"genre match (+{weights['genre']:.2f})")
 
-    # Mood match: +1.0 point
+    # Mood match
     if song["mood"] == user_prefs["favorite_mood"]:
-        score += 1.0
-        reasons.append("mood match (+1.0)")
+        score += weights["mood"]
+        reasons.append(f"mood match (+{weights['mood']:.2f})")
 
-    # Energy similarity: closer to target_energy = more points (max 2.0)
+    # Energy similarity: linear falloff from energy_max at diff=0 to 0 at diff=1.0
     energy_diff = abs(song["energy"] - user_prefs["target_energy"])
-    energy_points = max(0.0, 2.0 - energy_diff * 2)
+    energy_max = weights["energy_max"]
+    energy_points = max(0.0, energy_max * (1 - energy_diff))
     if energy_points > 0:
         score += energy_points
-        reasons.append(f"energy closeness (+{round(energy_points, 1)})")
+        reasons.append(f"energy closeness (+{round(energy_points, 2)})")
 
     # Bonus: acousticness preference
     if user_prefs.get("likes_acoustic") and song.get("acousticness", 0) > 0.6:
-        score += 1.0
-        reasons.append("high acousticness (+1.0)")
+        score += weights["acoustic"]
+        reasons.append(f"high acousticness (+{weights['acoustic']:.2f})")
 
     return score, reasons
 
 
-def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
+def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5, weights: Optional[Dict] = None) -> List[Tuple[Dict, float, str]]:
     """Scores every song, ranks them, and returns the top k recommendations."""
     def build_result(song):
         """Scores a song and packages it with its explanation into a result tuple."""
-        score, reasons = score_song(user_prefs, song)
+        score, reasons = score_song(user_prefs, song, weights=weights)
         explanation = ", ".join(reasons) if reasons else "no strong matches"
         return (song, score, explanation)
 
